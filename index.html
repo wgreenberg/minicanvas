@@ -3,7 +3,7 @@
   <head>
     <script type="module">
       async function init() {
-        const wasm = await fetch("./www/minicanvas.wasm");
+        const wasm = await fetch("./target/wasm32-unknown-unknown/release/minicanvas.wasm");
         const { instance } = await WebAssembly.instantiateStreaming(wasm);
 
         instance.exports.init();
@@ -48,38 +48,47 @@
             },
         };
 
-        document.addEventListener('mousemove', e => {
+        canvas.addEventListener('mousemove', e => {
             state.mouse.position.x = e.x;
             state.mouse.position.y = e.y;
+            update();
         })
 
-        document.addEventListener('mousedown', e => {
+        canvas.addEventListener('mousedown', e => {
             if (e.button === 0) {
                 state.mouse.leftButton = 1;
             } else if (e.button === 2) {
                 state.mouse.rightButton = 1;
             }
-            console.log(state)
+            update();
         })
 
-        document.addEventListener('mouseup', e => {
+        canvas.addEventListener('mouseup', e => {
             if (e.button === 0) {
                 state.mouse.leftButton = 0;
             } else if (e.button === 2) {
                 state.mouse.rightButton = 0;
             }
-            console.log(state)
+            update();
         })
 
-        const render = (time) => {
-            try {
+        function update(time) {
+            if (time) {
                 if (state.time === 0) {
                     state.time = time;
                 }
                 state.dt = time - state.time;
                 state.time = time;
                 state.frame++;
-                instance.exports.update(state.time, state.dt, state.frame, state.mouse.position.x, state.mouse.position.y, state.mouse.leftButton, state.mouse.rightButton)
+            } else {
+                state.dt = 0;
+            }
+            instance.exports.update(state.time, state.dt, state.frame, state.mouse.position.x, state.mouse.position.y, state.mouse.leftButton, state.mouse.rightButton)
+        }
+
+        const render = (time) => {
+            try {
+                update(time);
                 instance.exports.render();
                 ctx.putImageData(image, 0, 0);
                 requestAnimationFrame(render);
