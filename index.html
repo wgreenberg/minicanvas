@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="module">
+      async function init() {
+        const wasm = await fetch("./www/minicanvas.wasm");
+        const { instance } = await WebAssembly.instantiateStreaming(wasm);
+
+        instance.exports.init();
+
+        const width = 600;
+        const height = 600;
+
+        const canvas = document.getElementById("demo-canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const frameBufferAddress = instance.exports.FRAME_BUFFER.value;
+        const image = new ImageData(
+            new Uint8ClampedArray(
+                instance.exports.memory.buffer,
+                frameBufferAddress,
+                4 * width * height,
+            ),
+            width,
+        );
+
+        function getRustError() {
+            const errorBufferAddress = instance.exports.ERROR_BUFFER.value;
+            const errorData = new Uint8ClampedArray(
+                instance.exports.memory.buffer,
+                errorBufferAddress,
+                1000,
+            );
+            const length = errorData.indexOf(0);
+            const decoder = new TextDecoder();
+            return decoder.decode(errorData.slice(0, length));
+        }
+
+        const ctx = canvas.getContext("2d");
+        const state = {
+            time: 0.0,
+            frame: 0,
+            mouse: {
+                position: { x: 0, y: 0 },
+                leftButton: 0,
+                rightButton: 0,
+            },
+        };
+
+        document.addEventListener('mousemove', e => {
+            state.mouse.position.x = e.x;
+            state.mouse.position.y = e.y;
+        })
+
+        document.addEventListener('mousedown', e => {
+            if (e.button === 0) {
+                state.mouse.leftButton = 1;
+            } else if (e.button === 2) {
+                state.mouse.rightButton = 1;
+            }
+            console.log(state)
+        })
+
+        document.addEventListener('mouseup', e => {
+            if (e.button === 0) {
+                state.mouse.leftButton = 0;
+            } else if (e.button === 2) {
+                state.mouse.rightButton = 0;
+            }
+            console.log(state)
+        })
+
+        const render = (time) => {
+            try {
+                if (state.time === 0) {
+                    state.time = time;
+                }
+                state.dt = time - state.time;
+                state.time = time;
+                state.frame++;
+                instance.exports.update(state.time, state.dt, state.frame, state.mouse.position.x, state.mouse.position.y, state.mouse.leftButton, state.mouse.rightButton)
+                instance.exports.render();
+                ctx.putImageData(image, 0, 0);
+                requestAnimationFrame(render);
+            } catch (e) {
+                console.error(`Error: ${e}`);
+                console.error(`Rust error: ${getRustError()}`);
+            }
+        };
+
+        render();
+      }
+
+      init();
+    </script>
+  </head>
+  <body>
+    <canvas id="demo-canvas"></canvas>
+  </body>
+</html>
